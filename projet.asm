@@ -10,7 +10,6 @@ extern XFlush
 extern XCreateGC
 extern XSetForeground
 extern XDrawLine
-extern XDrawPoint
 extern XNextEvent
 
 ; External functions from stdio library (ld-linux-x86-64.so.2)    
@@ -30,8 +29,8 @@ extern exit
 %define DWORD                4
 %define WORD                 2
 %define BYTE                 1
-%define NB_FOYERS            100
-%define NB_POINTS            500000
+%define NB_FOYERS            50
+%define NB_POINTS            10000
 %define WIDTH                800
 %define HEIGHT               800
 
