@@ -132,6 +132,12 @@ main:
     jz      closeDisplay     ; Quitter si le GC n'est pas créé
     mov     [gc], rax
 
+    ; Définir la couleur du crayon
+    mov     rdi, [display_name]
+    mov     rsi, [gc]
+    mov     edx, 0xFF0000    ; Couleur rouge
+    call    XSetForeground
+
     ; Générer les foyers
     call    generate_foyers
 
@@ -210,6 +216,27 @@ boucle_points:
     mov     [y1], r12d
 
     ; Trouver le foyer le plus proche
+    call    trouver_foyer_proche
+
+    ; Dessiner la ligne
+    mov     rdi, [display_name]
+    mov     rsi, [window]
+    mov     rdx, [gc]
+    mov     ecx, [x1]
+    mov     r8d, [y1]
+    mov     r9d, [x2]
+    sub     rsp, 16
+    mov     eax, [y2]
+    mov     [rsp], rax
+    call    XDrawLine
+    add     rsp, 16
+
+    ; Passer au point suivant
+    inc     r14
+    jmp     boucle_points
+
+; Trouver le foyer le plus proche
+trouver_foyer_proche:
     xor     r15d, r15d
     mov     dword [distance_min], 0x7FFFFFFF
 boucle_foyers_point:
@@ -238,38 +265,6 @@ sauvegarde_distance:
     mov     [distance_min], r12d
     mov     [distance_min_id], r15d
     jmp     suite_boucle_foyers_point
-
-; Dessiner la ligne vers le foyer le plus proche
-dessiner_ligne:
-    ; Récupérer l'identifiant du foyer le plus proche
-    mov     r12d, [distance_min_id]
-
-    ; Vérifier si l'indice est valide
-    cmp     r12d, [nb_foyers]
-    jae     erreur
-
-    ; Récupérer les coordonnées du foyer
-    mov     eax, [tableau_x_foyers + r12d * 4]
-    mov     [x2], eax
-    mov     eax, [tableau_y_foyers + r12d * 4]
-    mov     [y2], eax
-
-    ; Dessiner la ligne
-    mov     rdi, [display_name]
-    mov     rsi, [window]
-    mov     rdx, [gc]
-    mov     ecx, [x1]
-    mov     r8d, [y1]
-    mov     r9d, [x2]
-    sub     rsp, 16
-    mov     eax, [y2]
-    mov     [rsp], rax
-    call    XDrawLine
-    add     rsp, 16
-
-    ; Passer au point suivant
-    inc     r14
-    jmp     boucle_points
 
 ; Générer un nombre aléatoire entre 0 et ecx-1
 generate_random:
