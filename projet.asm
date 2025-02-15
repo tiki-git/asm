@@ -49,17 +49,11 @@ gc:             resq 1
 distance_min:   resd 1
 distance_min_id:resd 1
 
-tableau_x_foyers: resd NB_FOYERS+1
-tableau_y_foyers: resd NB_FOYERS+1
-drawing_done:   resb 1 ; Flag to indicate if drawing is done
-
+tableau_x_foyers: resd NB_FOYERS
+tableau_y_foyers: resd NB_FOYERS
 
 section .data
 
-; Format strings
-
-affichage_indice db "Indice : %d", 10, 0 ; Format string for printf
-error_message db "Erreur : indice hors limites ou accès invalide.", 0xA, 0  ; Message d'erreur avec saut de ligne
 event:          times 24 dq 0
 
 width          dd WIDTH
@@ -72,6 +66,9 @@ x2:             dd 0
 y1:             dd 0
 y2:             dd 0
 
+format_printf  db "Foyer %d: (%d, %d)", 10, 0  ; Format string for printf
+error_message db "Erreur : indice hors limites ou accès invalide.", 0xA, 0  ; Message d'erreur avec saut de ligne
+
 section .text
 
 ;##################################################
@@ -79,194 +76,183 @@ section .text
 ;##################################################
 
 main:
-    mov     byte [drawing_done], 0
-    
-    ; Save registers before printf
-    push    rbp
-    mov     rbp, rsp
-    
-    ; Get display name
-    xor     rdi, rdi          ; NULL for default display
-    call    XDisplayName
-    
-    ; Print display name
-    test    rax, rax          ; Check if display name is NULL
-    jz      closeDisplay
-
-    ; Try to open display
-    xor     rdi, rdi          ; NULL for default display
+    ; Ouvrir la connexion au serveur X11
+    xor     rdi, rdi
     call    XOpenDisplay
-    test    rax, rax          ; Check if display opened successfully
+    test    rax, rax
     jz      closeDisplay
-    
-    ; Display opened successfully
     mov     [display_name], rax
-    
-    ; Restore stack frame
-    mov     rsp, rbp
-    pop     rbp
-    
-    ; Continue with the rest of your code
-    mov     [display_name],rax
-    mov     eax,dword[rax+0xe0]
-    mov     dword[screen],eax
-    
-    mov rdi,qword[display_name]
-    mov esi,dword[screen]
-    call XRootWindow
-    mov rbx,rax
 
-    mov rdi,qword[display_name]
-    mov rsi,rbx
-    mov rdx,10
-    mov rcx,10
-    mov r8,[width]	; largeur
-    mov r9,[height]	; hauteur
-    push 0x000000	; background  0xRRGGBB
-    push 0x00FF00
-    push 1
-    call XCreateSimpleWindow
-    mov qword[window],rax
+    ; Obtenir l'écran par défaut
+    mov     rax, [display_name]
+    mov     eax, dword[rax+0xe0]
+    mov     dword[screen], eax
 
-    mov rdi,qword[display_name]
-    mov rsi,qword[window]
-    mov rdx,131077 ;131072
-    call XSelectInput
+    ; Créer la fenêtre
+    mov     rdi, [display_name]
+    mov     esi, [screen]
+    call    XRootWindow
+    mov     rbx, rax
 
-    mov rdi,qword[display_name]
-    mov rsi,qword[window]
-    call XMapWindow
+    mov     rdi, [display_name]
+    mov     rsi, rbx
+    mov     rdx, 10
+    mov     rcx, 10
+    mov     r8, [width]
+    mov     r9, [height]
+    push    0xFFFFFF
+    push    0x00FF00
+    push    1
+    call    XCreateSimpleWindow
+    mov     [window], rax
 
-    ; Create graphics context with proper error checking
-    mov rdi, qword[display_name]
-    test rdi, rdi
-    jz closeDisplay
-    
-    mov rsi, qword[window]
-    test rsi, rsi
-    jz closeDisplay
-    
-    xor rdx, rdx        ; No mask
-    xor rcx, rcx        ; No values
-    call XCreateGC
-    test rax, rax       ; Check if GC creation failed
-    jz closeDisplay
-    
-    mov qword[gc], rax
+    ; Configurer les événements de la fenêtre
+    mov     rdi, [display_name]
+    mov     rsi, [window]
+    mov     rdx, 131077
+    call    XSelectInput
 
-boucle: ; Event handling loop
-    mov     rdi, qword[display_name]
-    cmp     rdi, 0              ; Check if display is NULL
-    je      closeDisplay        ; Exit if display is NULL
+    ; Afficher la fenêtre
+    mov     rdi, [display_name]
+    mov     rsi, [window]
+    call    XMapWindow
+
+    ; Créer le contexte graphique
+    mov     rdi, [display_name]
+    mov     rsi, [window]
+    xor     rdx, rdx
+    xor     rcx, rcx
+    call    XCreateGC
+    mov     [gc], rax
+
+    ; Générer les foyers
+    call    generate_foyers
+
+    ; Relier les points aux foyers
+    call    relier_points
+
+    ; Boucle principale de gestion des événements
+boucle:
+    mov     rdi, [display_name]
     mov     rsi, event
     call    XNextEvent
 
-    cmp     dword[event], ConfigureNotify ; On window appearance
-    je      foyers                        ; Jump to 'foyers' label
+    cmp     dword[event], ConfigureNotify
+    je      dessin
 
-    cmp     dword[event], KeyPress        ; On key press
-    je      closeDisplay                  ; Jump to 'closeDisplay'
+    cmp     dword[event], KeyPress
+    je      closeDisplay
     jmp     boucle
 
-;#########################################
-;# BEGIN GENERATION OF FOYERS            #
-;#########################################
-    
+dessin:
+    jmp     flush
 
-foyers:
+flush:
+    mov     rdi, [display_name]
+    call    XFlush
+    jmp     boucle
 
-    cmp     byte [drawing_done], 1
-    je      boucle ; If drawing is done, skip the drawing process
+closeDisplay:
+    mov     rax, [display_name]
+    mov     rdi, rax
+    call    XCloseDisplay
+    xor     rdi, rdi
+    call    exit
 
-    ; r14 est à 0 il servira de compteur
-    xor r14, r14
+;##################################################
+;########### FONCTIONS PERSONNALISÉES #############
+;##################################################
 
-    boucle_foyers:
-        mov ecx, [width] 
-        call generate_random
+; Générer les foyers
+generate_foyers:
+    xor     r14, r14
+boucle_foyers:
+    mov     ecx, [width]
+    call    generate_random
+    mov     [tableau_x_foyers + r14 * 4], r12d
 
-        ; Sauvegarder le nombre aléatoire
-        mov [tableau_x_foyers + r14 * 4], r12
+    mov     ecx, [height]
+    call    generate_random
+    mov     [tableau_y_foyers + r14 * 4], r12d
 
-        mov ecx, [height] 
-        call generate_random
+    ; Afficher les coordonnées des foyers
+    mov     rdi, format_printf  ; "Foyer %d: (%d, %d)\n"
+    mov     rsi, r14            ; Indice du foyer
+    mov     rdx, [tableau_x_foyers + r14 * 4]  ; Coordonnée x
+    mov     rcx, [tableau_y_foyers + r14 * 4]  ; Coordonnée y
+    call    printf
 
-        ; Sauvegarder le nombre aléatoire
-        mov [tableau_y_foyers + r14 * 4], r12
+    inc     r14
+    cmp     r14d, [nb_foyers]
+    jl      boucle_foyers
+    ret
 
-
-        ; Incrémenter le compteur
-        inc r14
-
-        ; Si le compteur est inférieur au nombre de foyers, on boucle
-        cmp r14d, [nb_foyers]
-        jl boucle_foyers
-        ;dec r14d
-        ;mov [nb_foyers], r14d
-
-;#########################################
-;# END GENERATION OF FOYERS              #
-;#########################################
-
-;#########################################
-;# BEGIN DRAWING ZONE                    #
-;#########################################
-
-
-    xor r14, r14
-
-    jmp boucle_points
-
-; generation aléatoire de 10000 points
-; pas besoin de sauvegarder les points il seron traités un à un
-; r14 a 0 il servira de compteur
-
+; Relier les points aux foyers
+relier_points:
+    xor     r14, r14
 boucle_points:
+    mov     ecx, [width]
+    call    generate_random
+    mov     [x1], r12d
 
-    
-    mov ecx, [width]
-    call generate_random
+    mov     ecx, [height]
+    call    generate_random
+    mov     [y1], r12d
 
+    ; Trouver le foyer le plus proche
+    xor     r15d, r15d
+    mov     dword [distance_min], 0x7FFFFFFF
+boucle_foyers_point:
+    mov     rdi, [tableau_x_foyers + r15d * 4]
+    mov     rsi, [tableau_y_foyers + r15d * 4]
+    mov     rdx, [x1]
+    mov     rcx, [y1]
+    call    calc_squared_distance
 
-    ; Sauvegarder le nombre aléatoire dans x1
-    mov [x1], r12d
+    cmp     r12d, [distance_min]
+    jl      sauvegarde_distance
 
-    mov ecx, [height]
-    call generate_random
+suite_boucle_foyers_point:
+    inc     r15d
+    cmp     r15d, [nb_foyers]
+    jl      boucle_foyers_point
 
-    ;sauvegarder le nombre aléatoire dans y1
-    mov [y1], r12
+    ; Dessiner la ligne
+    mov     rdi, [display_name]
+    mov     rsi, [window]
+    mov     rdx, [gc]
+    mov     ecx, [tableau_x_foyers + r15d * 4]
+    mov     r8d, [tableau_y_foyers + r15d * 4]
+    mov     r9d, [x1]
+    push    qword [y1]
+    call    XDrawLine
 
+    inc     r14
+    cmp     r14d, [nb_points]
+    jl      boucle_points
+    ret
 
-    ; trouver de quelle foyer le point est le plus proche
-    ; r15d est à 0 il servira de compteur
+sauvegarde_distance:
+    mov     [distance_min], r12d
+    mov     [distance_min_id], r15d
+    jmp     suite_boucle_foyers_point
 
-    xor r15d, r15d ; indice du foyer
-    ; boucle qui parcourt les foyers et calcule la distance entre le points et les foyers
+; Générer un nombre aléatoire entre 0 et ecx-1
+generate_random:
+    rdrand  r12d
+    jnc     generate_random
+    xor     edx, edx
+    mov     eax, r12d
+    div     ecx
+    mov     r12d, edx
+    ret
 
-    ; initialiser la distance à la plus grande valeur possible
-    mov dword [distance_min], 0xffffff
-
-    boucle_foyers_point:
-
-        ; calcul de la distance entre le point et le foyer
-
-        ; récupérer les coordonnées du foyer
-        ; et les stocker dans rcx et rdx
-        mov rdi, [tableau_x_foyers + r15d * 4]
-        mov rsi, [tableau_y_foyers + r15d * 4]
-        mov rdx, [x1]
-        mov rcx, [y1]
-        call calc_squared_distance
-
-        ; si aex est inférieur à distance_min, on sauvegarde la distance et l'identifiant du foyer
-
-        cmp r12d,[distance_min]
-        jl sauvegarde_distance
-
-        suite_boucle_foyers_point:
-
-        ; incrementer le compteur
-        inc r15d
-
-        ; si le compteur est inférieur au nombre de foyers, on boucle
+; Calculer la distance au carré entre deux points
+calc_squared_distance:
+    sub     rdi, rdx
+    imul    rdi, rdi
+    sub     rsi, rcx
+    imul    rsi, rsi
+    add     rdi, rsi
+    mov     r12d, edi
+    ret
