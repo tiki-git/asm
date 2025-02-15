@@ -59,8 +59,8 @@ y1:	dd	0
 y2:	dd	0
 
 ; Paramètres pour la génération des points
-num_foyers: dd 50      ; Nombre de foyers (par exemple, 50)
-num_points: dd 10000   ; Nombre de points (par exemple, 10000)
+num_foyers: dd 5       ; Nombre de foyers (réduit pour le débogage)
+num_points: dd 100      ; Nombre de points (réduit pour le débogage)
 
 section .text
 	
