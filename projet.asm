@@ -230,7 +230,37 @@ relier_points_loop:
 
 ; Fonction pour trouver le foyer le plus proche
 trouver_foyer_plus_proche:
-    ; Implémentez ici la logique pour trouver le foyer le plus proche
-    ; Utilisez la fonction `distance` pour calculer les distances
-    ; Retourne les coordonnées du foyer le plus proche dans eax (x) et ebx (y)
+    ; Initialisation des variables
+    mov edx, 0x7FFFFFFF    ; Initialise la distance minimale à une grande valeur
+    mov r8d, 0             ; Index du foyer le plus proche
+    mov r9d, [num_foyers]  ; Nombre de foyers
+    lea r10, [foyers_x]    ; Adresse du tableau des x des foyers
+    lea r11, [foyers_y]    ; Adresse du tableau des y des foyers
+
+trouver_foyer_loop:
+    ; Charge les coordonnées du foyer courant
+    mov esi, [r10 + r8 * 4]  ; x du foyer
+    mov edi, [r11 + r8 * 4]  ; y du foyer
+
+    ; Calcule la distance entre le point et le foyer
+    sub esi, eax           ; x1 - x2
+    imul esi, esi          ; (x1 - x2)^2
+    sub edi, ebx           ; y1 - y2
+    imul edi, edi          ; (y1 - y2)^2
+    add esi, edi           ; (x1 - x2)^2 + (y1 - y2)^2
+
+    ; Compare avec la distance minimale
+    cmp esi, edx
+    jge next_foyer         ; Si la distance est plus grande, passe au foyer suivant
+    mov edx, esi           ; Sinon, met à jour la distance minimale
+    mov r8d, ecx           ; Met à jour l'index du foyer le plus proche
+
+next_foyer:
+    inc ecx                ; Passe au foyer suivant
+    cmp ecx, r9d           ; Vérifie si tous les foyers ont été parcourus
+    jl trouver_foyer_loop
+
+    ; Retourne les coordonnées du foyer le plus proche
+    mov eax, [r10 + r8 * 4]  ; x du foyer le plus proche
+    mov ebx, [r11 + r8 * 4]  ; y du foyer le plus proche
     ret
