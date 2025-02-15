@@ -239,12 +239,18 @@ boucle_points:
 
 ; Trouver le foyer le plus proche
 trouver_foyer_proche:
-    xor     r15d, r15d
+    xor     r15d, r15d ; Initialiser r15d à 0
     mov     dword [distance_min], 0x7FFFFFFF
 boucle_foyers_point:
     ; Vérifier si tous les foyers sont parcourus
     cmp     r15d, [nb_foyers]
     jge     suite_boucle_foyers_point
+
+    ; Afficher l'indice pour le débogage
+    mov     rdi, affichage_indice
+    mov     rsi, r15d
+    xor     eax, eax
+    call    printf
 
     ; Vérifier si l'indice est valide
     cmp     r15d, [nb_foyers]
