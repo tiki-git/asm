@@ -65,6 +65,8 @@ x2:             dd 0
 y1:             dd 0
 y2:             dd 0
 
+format_printf  db "Foyer %d: (%d, %d)", 10, 0  ; Format string pour printf
+
 section .text
 
 ;##################################################
@@ -170,6 +172,13 @@ boucle_foyers:
     mov     ecx, [height]
     call    generate_random
     mov     [tableau_y_foyers + r14 * 4], r12d
+
+    ; Afficher les coordonnées des foyers
+    mov     rdi, format_printf  ; "Foyer %d: (%d, %d)\n"
+    mov     rsi, r14            ; Indice du foyer
+    mov     rdx, [tableau_x_foyers + r14 * 4]  ; Coordonnée x
+    mov     rcx, [tableau_y_foyers + r14 * 4]  ; Coordonnée y
+    call    printf
 
     inc     r14
     cmp     r14d, [nb_foyers]
