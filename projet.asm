@@ -246,6 +246,10 @@ boucle_foyers_point:
     cmp     r15d, [nb_foyers]
     jge     suite_boucle_foyers_point
 
+    ; Vérifier si l'indice est valide
+    cmp     r15d, [nb_foyers]
+    jae     erreur ; Si r15d >= nb_foyers, afficher une erreur
+
     ; Calculer la distance au carré
     mov     rdi, [tableau_x_foyers + r15d * 4]
     mov     rsi, [tableau_y_foyers + r15d * 4]
