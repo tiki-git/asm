@@ -66,6 +66,7 @@ y1:             dd 0
 y2:             dd 0
 
 format_printf  db "Foyer %d: (%d, %d)", 10, 0  ; Format string pour printf
+error_message db "Erreur : indice hors limites ou accès invalide.", 0xA, 0  ; Message d'erreur avec saut de ligne
 
 section .text
 
