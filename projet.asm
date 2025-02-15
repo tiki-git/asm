@@ -109,6 +109,8 @@ main:
     push    0x00FF00
     push    1
     call    XCreateSimpleWindow
+    test    rax, rax         ; Vérifier si la fenêtre est créée
+    jz      closeDisplay     ; Quitter si la fenêtre n'est pas créée
     mov     [window], rax
 
     ; Configurer les événements de la fenêtre
