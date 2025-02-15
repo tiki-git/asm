@@ -256,11 +256,17 @@ boucle_foyers_point:
     cmp     r15d, [nb_foyers]
     jae     erreur ; Si r15d >= nb_foyers, afficher une erreur
 
-    ; Calculer la distance au carré
-    mov     rdi, [tableau_x_foyers + r15d * 4]
-    mov     rsi, [tableau_y_foyers + r15d * 4]
+    ; Charger les coordonnées du foyer
+    lea     rbx, [tableau_x_foyers + r15d * 4] ; Calculer l'adresse de x
+    mov     rdi, [rbx] ; Charger la valeur de x
+    lea     rbx, [tableau_y_foyers + r15d * 4] ; Calculer l'adresse de y
+    mov     rsi, [rbx] ; Charger la valeur de y
+
+    ; Charger les coordonnées du point
     mov     rdx, [x1]
     mov     rcx, [y1]
+
+    ; Calculer la distance au carré
     call    calc_squared_distance
 
     ; Comparer avec la distance minimale
