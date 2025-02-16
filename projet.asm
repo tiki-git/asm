@@ -201,19 +201,20 @@ random_coordinate:
 
 ; Fonction pour trouver le foyer le plus proche
 find_nearest_foyer:
+    push rbp
+    mov rbp, rsp
     push rbx
     push rcx
     push rdx
     push rsi
     push rdi
-    push rbp
-    mov rbp, rsp
 
+    ; Initialisation des variables
     mov ecx, dword[num_foyers]
     lea rbx, [foyers_x]
     lea rdx, [foyers_y]
-    mov esi, dword[rbx]  ; Premier foyer
-    mov edi, dword[rdx]
+    mov esi, dword[rbx]  ; Premier foyer (x)
+    mov edi, dword[rdx]  ; Premier foyer (y)
     call calculate_distance
     mov ebp, eax  ; Distance minimale
 
@@ -224,8 +225,8 @@ find_nearest_foyer:
     jz .done
 
 .find_loop:
-    mov esi, dword[rbx + rcx*4]
-    mov edi, dword[rdx + rcx*4]
+    mov esi, dword[rbx + rcx*4]  ; Coordonnée x du foyer
+    mov edi, dword[rdx + rcx*4]  ; Coordonnée y du foyer
     call calculate_distance
     cmp eax, ebp
     jge .next
@@ -236,15 +237,14 @@ find_nearest_foyer:
     loop .find_loop
 
 .done:
-    mov eax, r8d
-    mov edi, r9d
-    mov rsp, rbp
-    pop rbp
+    ; Restaurer les registres dans l'ordre inverse
     pop rdi
     pop rsi
     pop rdx
     pop rcx
     pop rbx
+    mov rsp, rbp
+    pop rbp
     ret
 
 ; Fonction pour calculer la distance entre deux points
