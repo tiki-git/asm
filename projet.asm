@@ -210,15 +210,15 @@ find_nearest_foyer:
     push rdi
 
     ; Initialisation des variables
-    mov ecx, dword[num_foyers]  ; Charger num_foyers dans ecx
-    lea rbx, [foyers_x]         ; Charger l'adresse de foyers_x dans rbx
-    lea rdx, [foyers_y]         ; Charger l'adresse de foyers_y dans rdx
-    mov esi, dword[rbx]         ; Charger la première coordonnée x
-    mov edi, dword[rdx]         ; Charger la première coordonnée y
+    mov ecx, dword[num_foyers]
+    lea rbx, [foyers_x]
+    lea rdx, [foyers_y]
+    mov esi, dword[rbx]  ; Premier foyer (x)
+    mov edi, dword[rdx]  ; Premier foyer (y)
     call calculate_distance
-    mov ebp, eax                ; Distance minimale
+    mov ebp, eax  ; Distance minimale
 
-    mov r8d, esi                ; Coordonnées du foyer le plus proche
+    mov r8d, esi  ; Coordonnées du foyer le plus proche
     mov r9d, edi
 
     dec ecx
@@ -245,6 +245,34 @@ find_nearest_foyer:
     pop rbx
     mov rsp, rbp
     pop rbp
+    ret
+
+; Fonction pour calculer la distance entre deux points
+calculate_distance:
+    push rbx
+    push rcx
+    push rdx
+    push rsi
+    push rdi
+    push rbp
+    mov rbp, rsp
+
+    sub eax, esi
+    imul eax, eax
+    sub edi, edx
+    imul edi, edi
+    add eax, edi
+    cvtsi2sd xmm0, eax
+    sqrtsd xmm0, xmm0
+    cvtsd2si eax, xmm0
+
+    mov rsp, rbp
+    pop rbp
+    pop rdi
+    pop rsi
+    pop rdx
+    pop rcx
+    pop rbx
     ret
 
 ; Fonction pour dessiner une ligne entre deux points
