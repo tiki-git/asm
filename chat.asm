@@ -1,4 +1,4 @@
-; external functions from X11 library
+; External functions from X11 library
 extern XOpenDisplay
 extern XCloseDisplay
 extern XCreateSimpleWindow
@@ -9,9 +9,10 @@ extern XFlush
 extern XCreateGC
 extern XSetForeground
 extern XDrawLine
+extern XDrawPoint
 extern XNextEvent
 
-; external functions from stdio library (ld-linux-x86-64.so.2)    
+; External functions from stdio and system libraries
 extern printf
 extern exit
 
@@ -41,6 +42,14 @@ x1: dd 0
 y1: dd 0
 x2: dd 0
 y2: dd 0
+
+; Couleurs
+color_red:    dd 0xFF0000
+color_green:  dd 0x00FF00
+color_blue:   dd 0x0000FF
+color_yellow: dd 0xFFFF00
+color_white:  dd 0xFFFFFF
+color_black:  dd 0x000000
 
 section .text
 
@@ -189,6 +198,11 @@ next_foyer:
     mov dword[y1], [rdi+4]
     mov dword[x2], [rbx]
     mov dword[y2], [rbx+4]
+
+    mov rdi, qword[display_name]
+    mov rsi, qword[gc]
+    mov edx, 0x0000FF   ; Couleur bleue
+    call XSetForeground
 
     mov rdi, qword[display_name]
     mov rsi, qword[window]
