@@ -1,4 +1,4 @@
-; external functions from X11 library
+; External functions from X11 library
 extern XOpenDisplay
 extern XDisplayName
 extern XCloseDisplay
@@ -13,292 +13,280 @@ extern XDrawLine
 extern XDrawPoint
 extern XNextEvent
 
-; external functions from stdio library (ld-linux-x86-64.so.2)    
+; External functions from stdio library (ld-linux-x86-64.so.2)    
 extern printf
 extern exit
 
-%define	StructureNotifyMask	131072
-%define KeyPressMask		1
-%define ButtonPressMask		4
-%define MapNotify		19
-%define KeyPress		2
-%define ButtonPress		4
-%define Expose			12
-%define ConfigureNotify		22
-%define CreateNotify 16
-%define QWORD	8
-%define DWORD	4
-%define WORD	2
-%define BYTE	1
+%define StructureNotifyMask 131072
+%define KeyPressMask        1
+%define ButtonPressMask     4
+%define MapNotify           19
+%define KeyPress            2
+%define ButtonPress         4
+%define Expose              12
+%define ConfigureNotify     22
+%define CreateNotify        16
+%define QWORD               8
+%define DWORD               4
+%define WORD                2
+%define BYTE                1
 
 global main
 
 section .bss
-display_name:	resq	1
-screen:			resd	1
-depth:         	resd	1
-connection:    	resd	1
-width:         	resd	1
-height:        	resd	1
-window:		resq	1
-gc:		resq	1
+display_name:   resq    1
+screen:         resd    1
+depth:          resd    1
+connection:     resd    1
+width:          resd    1
+height:         resd    1
+window:         resq    1
+gc:             resq    1
 
 ; Tableaux pour stocker les foyers et les points
-foyers_x:	resd	1000	; Tableau pour les coordonnées x des foyers
-foyers_y:	resd	1000	; Tableau pour les coordonnées y des foyers
-points_x:	resd	10000	; Tableau pour les coordonnées x des points
-points_y:	resd	10000	; Tableau pour les coordonnées y des points
+foyers_x:       resd    1000    ; Coordonnées x des foyers
+foyers_y:       resd    1000    ; Coordonnées y des foyers
+points_x:       resd    10000   ; Coordonnées x des points
+points_y:       resd    10000   ; Coordonnées y des points
 
 section .data
+event:          times   24 dq 0
+x1:             dd      0
+x2:             dd      0
+y1:             dd      0
+y2:             dd      0
 
-event:		times	24 dq 0
-
-x1:	dd	0
-x2:	dd	0
-y1:	dd	0
-y2:	dd	0
-
-; Constantes pour le nombre de foyers et de points
-num_foyers:	dd	50	; Nombre de foyers
-num_points:	dd	10000	; Nombre de points
+; Constantes configurables
+num_foyers:     dd      50      ; Nombre de foyers (max 1000)
+num_points:     dd      10000   ; Nombre de points (max 10000)
 
 section .text
-	
+
 ;##################################################
 ;########### PROGRAMME PRINCIPAL ##################
 ;##################################################
 
 main:
-xor     rdi,rdi
-call    XOpenDisplay	; Création de display
-mov     qword[display_name],rax	; rax=nom du display
+    xor     rdi, rdi
+    call    XOpenDisplay            ; Création du display X11
+    mov     qword[display_name], rax
 
-; display_name structure
-; screen = DefaultScreen(display_name);
-mov     rax,qword[display_name]
-mov     eax,dword[rax+0xe0]
-mov     dword[screen],eax
+    ; Configuration de la fenêtre
+    mov     rax, qword[display_name]
+    mov     eax, dword[rax + 0xe0]
+    mov     dword[screen], eax
 
-mov rdi,qword[display_name]
-mov esi,dword[screen]
-call XRootWindow
-mov rbx,rax
+    mov     rdi, qword[display_name]
+    mov     esi, dword[screen]
+    call    XRootWindow
+    mov     rbx, rax
 
-mov rdi,qword[display_name]
-mov rsi,rbx
-mov rdx,10
-mov rcx,10
-mov r8,400	; largeur
-mov r9,400	; hauteur
-push 0xFFFFFF	; background  0xRRGGBB
-push 0x00FF00
-push 1
-call XCreateSimpleWindow
-mov qword[window],rax
+    mov     rdi, qword[display_name]
+    mov     rsi, rbx
+    mov     rdx, 10
+    mov     rcx, 10
+    mov     r8, 400                 ; Largeur de la fenêtre
+    mov     r9, 400                 ; Hauteur de la fenêtre
+    push    0xFFFFFF                ; Couleur de fond
+    push    0x00FF00
+    push    1
+    call    XCreateSimpleWindow
+    mov     qword[window], rax
 
-mov rdi,qword[display_name]
-mov rsi,qword[window]
-mov rdx,131077 ;131072
-call XSelectInput
+    ; Configuration des événements
+    mov     rdi, qword[display_name]
+    mov     rsi, qword[window]
+    mov     rdx, 131077             ; Masque d'événements
+    call    XSelectInput
 
-mov rdi,qword[display_name]
-mov rsi,qword[window]
-call XMapWindow
+    ; Affichage de la fenêtre
+    mov     rdi, qword[display_name]
+    mov     rsi, qword[window]
+    call    XMapWindow
 
-mov rsi,qword[window]
-mov rdx,0
-mov rcx,0
-call XCreateGC
-mov qword[gc],rax
+    ; Création du contexte graphique
+    mov     rsi, qword[window]
+    mov     rdx, 0
+    mov     rcx, 0
+    call    XCreateGC
+    mov     qword[gc], rax
 
-mov rdi,qword[display_name]
-mov rsi,qword[gc]
-mov rdx,0x000000	; Couleur du crayon
-call XSetForeground
+    ; Définition de la couleur par défaut
+    mov     rdi, qword[display_name]
+    mov     rsi, qword[gc]
+    mov     rdx, 0x000000           ; Noir
+    call    XSetForeground
 
 ; Génération aléatoire des foyers
-mov ecx, dword[num_foyers]
-lea rbx, [foyers_x]
-lea rdx, [foyers_y]
 generate_foyers:
-    call random_coordinate
-    mov dword[rbx + rcx*4 - 4], eax  ; Stocke la coordonnée x
-    call random_coordinate
-    mov dword[rdx + rcx*4 - 4], eax  ; Stocke la coordonnée y
-    loop generate_foyers
+    mov     ecx, dword[num_foyers]
+    lea     rbx, [foyers_x]
+    lea     rdx, [foyers_y]
+.generate_loop:
+    call    random_coordinate
+    mov     dword[rbx + rcx*4 - 4], eax  ; Stockage x
+    call    random_coordinate
+    mov     dword[rdx + rcx*4 - 4], eax  ; Stockage y
+    loop    .generate_loop
 
 ; Génération aléatoire des points
-mov ecx, dword[num_points]
-lea rbx, [points_x]
-lea rdx, [points_y]
 generate_points:
-    call random_coordinate
-    mov dword[rbx + rcx*4 - 4], eax  ; Stocke la coordonnée x
-    call random_coordinate
-    mov dword[rdx + rcx*4 - 4], eax  ; Stocke la coordonnée y
-    loop generate_points
+    mov     ecx, dword[num_points]
+    lea     rbx, [points_x]
+    lea     rdx, [points_y]
+.generate_loop:
+    call    random_coordinate
+    mov     dword[rbx + rcx*4 - 4], eax  ; Stockage x
+    call    random_coordinate
+    mov     dword[rdx + rcx*4 - 4], eax  ; Stockage y
+    loop    .generate_loop
 
 ; Relier chaque point au foyer le plus proche
-mov ecx, dword[num_points]
-lea rbx, [points_x]
-lea rdx, [points_y]
 connect_points:
-    mov eax, dword[rbx + rcx*4 - 4]  ; Coordonnée x du point
-    mov edi, dword[rdx + rcx*4 - 4]  ; Coordonnée y du point
-    call find_nearest_foyer
-    ; Dessiner une ligne entre le point et le foyer le plus proche
-    mov dword[x1], eax
-    mov dword[y1], edi
-    mov dword[x2], esi
-    mov dword[y2], edx
-    call draw_line
-    loop connect_points
+    mov     r15d, dword[num_points]       ; Utilisation de r15 pour la boucle externe
+    lea     rbx, [points_x]
+    lea     rdx, [points_y]
+.connect_loop:
+    mov     eax, dword[rbx + r15*4 - 4]  ; x du point
+    mov     edi, dword[rdx + r15*4 - 4]  ; y du point
+    call    find_nearest_foyer
+    mov     dword[x1], eax
+    mov     dword[y1], edi
+    mov     dword[x2], esi
+    mov     dword[y2], edx
+    call    draw_line
+    dec     r15d
+    jnz     .connect_loop
 
-boucle: ; boucle de gestion des évènements
-mov rdi,qword[display_name]
-mov rsi,event
-call XNextEvent
+; Boucle principale de gestion des événements
+event_loop:
+    mov     rdi, qword[display_name]
+    mov     rsi, event
+    call    XNextEvent
 
-cmp dword[event],ConfigureNotify	; à l'apparition de la fenêtre
-je dessin							; on saute au label 'dessin'
+    cmp     dword[event], ConfigureNotify
+    je      dessin
+    cmp     dword[event], KeyPress
+    je      close_display
+    jmp     event_loop
 
-cmp dword[event],KeyPress			; Si on appuie sur une touche
-je closeDisplay						; on saute au label 'closeDisplay' qui ferme la fenêtre
-jmp boucle
-
-;#########################################
-;#		DEBUT DE LA ZONE DE DESSIN		 #
-;#########################################
 dessin:
-
-; ############################
-; # FIN DE LA ZONE DE DESSIN #
-; ############################
-jmp flush
+    jmp     flush
 
 flush:
-mov rdi,qword[display_name]
-call XFlush
-jmp boucle
-mov rax,34
-syscall
+    mov     rdi, qword[display_name]
+    call    XFlush
+    jmp     event_loop
 
-closeDisplay:
-    mov     rax,qword[display_name]
-    mov     rdi,rax
+close_display:
+    mov     rax, qword[display_name]
+    mov     rdi, rax
     call    XCloseDisplay
-    xor	    rdi,rdi
+    xor     rdi, rdi
     call    exit
 
-; Fonction pour générer une coordonnée aléatoire entre 0 et 399
+;---------------------------------------------------------------------
+; Fonctions utilitaires
+;---------------------------------------------------------------------
+
+; Génère une coordonnée aléatoire entre 0 et 399
 random_coordinate:
-    rdrand eax
-    jnc random_coordinate  ; Si CF=0, on recommence
-    and eax, 0x3FF         ; On garde les 10 bits de poids faible (0-1023)
-    cmp eax, 400
-    jge random_coordinate  ; Si >= 400, on recommence
+    rdrand  eax
+    jnc     random_coordinate      ; Réessayer si CF=0
+    and     eax, 0x3FF             ; Masque pour 0-1023
+    cmp     eax, 400
+    jge     random_coordinate      ; Limiter à 399
     ret
 
-; Fonction pour trouver le foyer le plus proche
+; Trouve le foyer le plus proche d'un point (x=eax, y=edi)
 find_nearest_foyer:
-    push rbp
-    mov rbp, rsp
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
+    push    rbp
+    mov     rbp, rsp
+    push    rbx
+    push    r12
+    push    r13
+    push    r14
+    push    r15
 
-    ; Initialisation des variables
-    mov ecx, dword[num_foyers]
-    lea rbx, [foyers_x]
-    lea rdx, [foyers_y]
-    mov esi, dword[rbx]  ; Premier foyer (x)
-    mov edi, dword[rdx]  ; Premier foyer (y)
-    call calculate_distance
-    mov ebp, eax  ; Distance minimale
+    mov     r12d, eax              ; Sauvegarde x du point
+    mov     r13d, edi              ; Sauvegarde y du point
+    mov     r14d, dword[num_foyers]
+    lea     rbx, [foyers_x]
+    lea     r15, [foyers_y]
 
-    mov r8d, esi  ; Coordonnées du foyer le plus proche
-    mov r9d, edi
+    ; Initialisation avec le premier foyer
+    mov     esi, dword[rbx]
+    mov     edi, dword[r15]
+    call    calculate_distance
+    mov     ecx, eax               ; Distance minimale
+    mov     r8d, esi               ; Coordonnées du foyer
 
-    dec ecx
-    jz .done
+    ; Parcourir les autres foyers
+    mov     r9d, 1
+.search_loop:
+    cmp     r9d, r14d
+    jge     .done
 
-.find_loop:
-    mov esi, dword[rbx + rcx*4]  ; Charger la coordonnée x du foyer
-    mov edi, dword[rdx + rcx*4]  ; Charger la coordonnée y du foyer
-    call calculate_distance
-    cmp eax, ebp
-    jge .next
-    mov ebp, eax
-    mov r8d, esi
-    mov r9d, edi
+    mov     esi, dword[rbx + r9*4]
+    mov     edi, dword[r15 + r9*4]
+    call    calculate_distance
+    cmp     eax, ecx
+    jge     .next
+    mov     ecx, eax
+    mov     r8d, esi
 .next:
-    loop .find_loop
+    inc     r9d
+    jmp     .search_loop
 
 .done:
-    ; Restaurer les registres dans l'ordre inverse
-    pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
-    mov rsp, rbp
-    pop rbp
+    mov     eax, r12d              ; Restaurer x du point
+    mov     edi, r13d              ; Restaurer y du point
+    mov     esi, r8d               ; x du foyer le plus proche
+    mov     edx, dword[r15 + r9*4] ; y du foyer le plus proche
+
+    pop     r15
+    pop     r14
+    pop     r13
+    pop     r12
+    pop     rbx
+    mov     rsp, rbp
+    pop     rbp
     ret
 
-; Fonction pour calculer la distance entre deux points
+; Calcule la distance entre deux points (x1=eax, y1=edi) et (x2=esi, y2=edx)
 calculate_distance:
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
-    push rbp
-    mov rbp, rsp
-
-    sub eax, esi          ; eax = x1 - x2
-    imul eax, eax         ; eax = (x1 - x2)^2
-    sub edi, edx          ; edi = y1 - y2
-    imul edi, edi         ; edi = (y1 - y2)^2
-    add eax, edi          ; eax = (x1 - x2)^2 + (y1 - y2)^2
-    cvtsi2sd xmm0, eax    ; Convertir eax en double précision
-    sqrtsd xmm0, xmm0     ; Racine carrée de xmm0
-    cvtsd2si eax, xmm0    ; Convertir le résultat en entier
-
-    mov rsp, rbp
-    pop rbp
-    pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
+    sub     eax, esi
+    imul    eax, eax              ; (x1 - x2)^2
+    sub     edi, edx
+    imul    edi, edi              ; (y1 - y2)^2
+    add     eax, edi              ; Somme des carrés
+    cvtsi2sd xmm0, eax
+    sqrtsd  xmm0, xmm0            ; Racine carrée
+    cvtsd2si eax, xmm0
     ret
 
-; Fonction pour dessiner une ligne entre deux points
+; Dessine une ligne entre (x1,y1) et (x2,y2)
 draw_line:
-    push rbx
-    push rcx
-    push rdx
-    push rsi
-    push rdi
-    push rbp
-    mov rbp, rsp
+    push    rdi
+    push    rsi
+    push    rdx
+    push    rcx
+    push    r8
+    push    r9
 
-    mov rdi, qword[display_name]
-    mov rsi, qword[window]
-    mov rdx, qword[gc]
-    mov ecx, dword[x1]
-    mov r8d, dword[y1]
-    mov r9d, dword[x2]
-    push qword[y2]
-    call XDrawLine
+    mov     rdi, qword[display_name]
+    mov     rsi, qword[window]
+    mov     rdx, qword[gc]
+    mov     ecx, dword[x1]
+    mov     r8d, dword[y1]
+    mov     r9d, dword[x2]
+    push    qword[y2]
+    call    XDrawLine
 
-    mov rsp, rbp
-    pop rbp
-    pop rdi
-    pop rsi
-    pop rdx
-    pop rcx
-    pop rbx
+    pop     r9
+    pop     r8
+    pop     rcx
+    pop     rdx
+    pop     rsi
+    pop     rdi
     ret
