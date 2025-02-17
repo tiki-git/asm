@@ -257,14 +257,14 @@ calculate_distance:
     push rbp
     mov rbp, rsp
 
-    sub eax, esi
-    imul eax, eax
-    sub edi, edx
-    imul edi, edi
-    add eax, edi
-    cvtsi2sd xmm0, eax
-    sqrtsd xmm0, xmm0
-    cvtsd2si eax, xmm0
+    sub eax, esi          ; eax = x1 - x2
+    imul eax, eax         ; eax = (x1 - x2)^2
+    sub edi, edx          ; edi = y1 - y2
+    imul edi, edi         ; edi = (y1 - y2)^2
+    add eax, edi          ; eax = (x1 - x2)^2 + (y1 - y2)^2
+    cvtsi2sd xmm0, eax    ; Convertir eax en double précision
+    sqrtsd xmm0, xmm0     ; Racine carrée de xmm0
+    cvtsd2si eax, xmm0    ; Convertir le résultat en entier
 
     mov rsp, rbp
     pop rbp
