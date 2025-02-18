@@ -111,54 +111,22 @@ main:
     call    XCreateGC
     mov     qword[gc], rax
 
-    ; Définition de la couleur par défaut
+    ; Définition de la couleur par défaut (noir)
     mov     rdi, qword[display_name]
     mov     rsi, qword[gc]
-    mov     rdx, 0x000000           ; Noir
+    mov     rdx, 0x000000
     call    XSetForeground
 
-; Génération aléatoire des foyers
-generate_foyers:
-    mov     ecx, dword[num_foyers]
-    lea     rbx, [foyers_x]
-    lea     rdx, [foyers_y]
-.generate_loop:
-    call    random_coordinate
-    mov     dword[rbx + rcx*4 - 4], eax  ; Stockage x
-    call    random_coordinate
-    mov     dword[rdx + rcx*4 - 4], eax  ; Stockage y
-    loop    .generate_loop
+    ; Génération aléatoire des foyers
+    call    generate_foyers
 
-; Génération aléatoire des points
-generate_points:
-    mov     ecx, dword[num_points]
-    lea     rbx, [points_x]
-    lea     rdx, [points_y]
-.generate_loop:
-    call    random_coordinate
-    mov     dword[rbx + rcx*4 - 4], eax  ; Stockage x
-    call    random_coordinate
-    mov     dword[rdx + rcx*4 - 4], eax  ; Stockage y
-    loop    .generate_loop
+    ; Génération aléatoire des points
+    call    generate_points
 
-; Relier chaque point au foyer le plus proche
-connect_points:
-    mov     r15d, dword[num_points]       ; Utilisation de r15 pour la boucle externe
-    lea     rbx, [points_x]
-    lea     rdx, [points_y]
-.connect_loop:
-    mov     eax, dword[rbx + r15*4 - 4]  ; x du point
-    mov     edi, dword[rdx + r15*4 - 4]  ; y du point
-    call    find_nearest_foyer
-    mov     dword[x1], eax
-    mov     dword[y1], edi
-    mov     dword[x2], esi
-    mov     dword[y2], edx
-    call    draw_line
-    dec     r15d
-    jnz     .connect_loop
+    ; Relier chaque point au foyer le plus proche
+    call    connect_points
 
-; Boucle principale de gestion des événements
+    ; Boucle principale de gestion des événements
 event_loop:
     mov     rdi, qword[display_name]
     mov     rsi, event
@@ -198,7 +166,51 @@ random_coordinate:
     jge     random_coordinate      ; Limiter à 399
     ret
 
-; Trouve le foyer le plus proche d'un point (x=eax, y=edi)
+; Génération aléatoire des foyers
+generate_foyers:
+    mov     ecx, dword[num_foyers]
+    lea     rbx, [foyers_x]
+    lea     rdx, [foyers_y]
+.generate_foyers_loop:
+    call    random_coordinate
+    mov     dword[rbx + rcx*4 - 4], eax  ; Stockage x
+    call    random_coordinate
+    mov     dword[rdx + rcx*4 - 4], eax  ; Stockage y
+    loop    .generate_foyers_loop
+    ret
+
+; Génération aléatoire des points
+generate_points:
+    mov     ecx, dword[num_points]
+    lea     rbx, [points_x]
+    lea     rdx, [points_y]
+.generate_points_loop:
+    call    random_coordinate
+    mov     dword[rbx + rcx*4 - 4], eax  ; Stockage x
+    call    random_coordinate
+    mov     dword[rdx + rcx*4 - 4], eax  ; Stockage y
+    loop    .generate_points_loop
+    ret
+
+; Relier chaque point au foyer le plus proche
+connect_points:
+    mov     r15d, dword[num_points]       ; r15d pour la boucle externe
+    lea     rbx, [points_x]
+    lea     rdx, [points_y]
+.connect_loop:
+    mov     eax, dword[rbx + r15*4 - 4]  ; x du point
+    mov     edi, dword[rdx + r15*4 - 4]  ; y du point
+    call    find_nearest_foyer
+    mov     dword[x1], eax
+    mov     dword[y1], edi
+    mov     dword[x2], esi
+    mov     dword[y2], edx
+    call    draw_line
+    dec     r15d
+    jnz     .connect_loop
+    ret
+
+; Trouve le foyer le plus proche d'un point (x = eax, y = edi)
 find_nearest_foyer:
     push    rbp
     mov     rbp, rsp
@@ -207,19 +219,20 @@ find_nearest_foyer:
     push    r13
     push    r14
     push    r15
+    push    r10              ; Sauvegarde r10 pour l'indice du meilleur foyer
 
-    mov     r12d, eax              ; Sauvegarde x du point
-    mov     r13d, edi              ; Sauvegarde y du point
+    mov     r12d, eax        ; Sauvegarde x du point
+    mov     r13d, edi        ; Sauvegarde y du point
     mov     r14d, dword[num_foyers]
     lea     rbx, [foyers_x]
     lea     r15, [foyers_y]
 
     ; Initialisation avec le premier foyer
-    mov     esi, dword[rbx]
-    mov     edi, dword[r15]
+    mov     esi, dword[rbx]      ; x du premier foyer
+    mov     edi, dword[r15]      ; y du premier foyer
     call    calculate_distance
-    mov     ecx, eax               ; Distance minimale
-    mov     r8d, esi               ; Coordonnées du foyer
+    mov     ecx, eax           ; Distance minimale
+    mov     r10d, 0            ; Meilleur indice initial = 0
 
     ; Parcourir les autres foyers
     mov     r9d, 1
@@ -227,23 +240,24 @@ find_nearest_foyer:
     cmp     r9d, r14d
     jge     .done
 
-    mov     esi, dword[rbx + r9*4]
-    mov     edi, dword[r15 + r9*4]
+    mov     esi, dword[rbx + r9d*4]  ; x du foyer courant
+    mov     edi, dword[r15 + r9d*4]  ; y du foyer courant
     call    calculate_distance
     cmp     eax, ecx
     jge     .next
-    mov     ecx, eax
-    mov     r8d, esi
+    mov     ecx, eax           ; Nouvelle distance minimale
+    mov     r10d, r9d          ; Sauvegarde l'indice du foyer le plus proche
 .next:
     inc     r9d
     jmp     .search_loop
 
 .done:
-    mov     eax, r12d              ; Restaurer x du point
-    mov     edi, r13d              ; Restaurer y du point
-    mov     esi, r8d               ; x du foyer le plus proche
-    mov     edx, dword[r15 + r9*4] ; y du foyer le plus proche
+    mov     eax, r12d          ; Restaurer x du point
+    mov     edi, r13d          ; Restaurer y du point
+    mov     esi, dword[rbx + r10*4]  ; x du foyer le plus proche
+    mov     edx, dword[r15 + r10*4]  ; y du foyer le plus proche
 
+    pop     r10
     pop     r15
     pop     r14
     pop     r13
@@ -253,7 +267,8 @@ find_nearest_foyer:
     pop     rbp
     ret
 
-; Calcule la distance entre deux points (x1=eax, y1=edi) et (x2=esi, y2=edx)
+; Calcule la distance entre deux points 
+; (point1 : x1=eax, y1=edi) et (point2 : x2=esi, y2=edx)
 calculate_distance:
     sub     eax, esi
     imul    eax, eax              ; (x1 - x2)^2
